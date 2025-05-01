@@ -1,0 +1,155 @@
+-- LocalScript
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local localPlayer = Players.LocalPlayer
+local teleporting = false
+local targetPlayer = nil
+
+-- UI Setup
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TeleportGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 220, 0, 60)
+MainFrame.Position = UDim2.new(0, 20, 0, 20)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+local Dropdown = Instance.new("TextButton")
+Dropdown.Size = UDim2.new(1, 0, 1, 0)
+Dropdown.Position = UDim2.new(0, 0, 0, 0)
+Dropdown.Text = "Select Target"
+Dropdown.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Dropdown.TextColor3 = Color3.new(1, 1, 1)
+Dropdown.TextScaled = true
+Dropdown.Parent = MainFrame
+
+local PlayerListFrame = Instance.new("Frame")
+PlayerListFrame.Size = UDim2.new(0, 200, 0, 300)
+PlayerListFrame.Position = UDim2.new(0, 0, 1, 0)
+PlayerListFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+PlayerListFrame.BorderSizePixel = 0
+PlayerListFrame.Visible = false
+PlayerListFrame.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.Parent = PlayerListFrame
+
+-- Make the MainFrame draggable
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+local function updateDrag(input)
+	local delta = input.Position - dragStart
+	MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+MainFrame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = MainFrame.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+MainFrame.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		dragInput = input
+	end
+end)
+
+UIS.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		updateDrag(input)
+	end
+end)
+
+-- Function to update player list
+local function updatePlayerList()
+	for _, child in ipairs(PlayerListFrame:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
+	end
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= localPlayer then
+			local btn = Instance.new("TextButton")
+			btn.Size = UDim2.new(1, -10, 0, 30)
+			btn.Text = player.Name
+			btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+			btn.TextColor3 = Color3.new(1, 1, 1)
+			btn.TextScaled = true
+			btn.Parent = PlayerListFrame
+
+			btn.MouseButton1Click:Connect(function()
+				targetPlayer = player
+				Dropdown.Text = "Target: " .. player.Name
+				PlayerListFrame.Visible = false
+			end)
+		end
+	end
+end
+
+-- Open/close the player list
+Dropdown.MouseButton1Click:Connect(function()
+	if PlayerListFrame.Visible then
+		PlayerListFrame.Visible = false
+	else
+		updatePlayerList()
+		PlayerListFrame.Visible = true
+	end
+end)
+
+-- Teleport loop
+RunService.RenderStepped:Connect(function()
+	if teleporting and targetPlayer then
+		if not Players:FindFirstChild(targetPlayer.Name) then
+			teleporting = false
+			targetPlayer = nil
+			Dropdown.Text = "Select Target"
+			PlayerListFrame.Visible = false
+			return
+		end
+		if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+			if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+				localPlayer.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 2, 0)
+			end
+		end
+	end
+end)
+
+-- Toggle teleporting on/off with V
+UIS.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == Enum.KeyCode.V then
+		teleporting = not teleporting
+	end
+end)
+
+-- Spam "X" key while teleporting
+task.spawn(function()
+	while true do
+		task.wait(0.1)
+		if teleporting then
+			local virtualInput = Instance.new("BindableEvent")
+			UIS.InputBegan:Fire({
+				UserInputType = Enum.UserInputType.Keyboard,
+				KeyCode = Enum.KeyCode.X,
+			}, false)
+		end
+	end
+end)
